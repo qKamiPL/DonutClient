@@ -93,7 +93,7 @@ public class DonutClient implements ClientModInitializer {
         public void render(
             DrawContext context, int mouseX, int mouseY, float delta
         ) {
-            renderBackground(context, mouseX, mouseY, delta);
+            context.fill(0, 0, this.width, this.height, 0x90000000);
 
             animation = Math.min(1.0f, animation + 0.09f);
 
