@@ -7,7 +7,9 @@
   "description": "A retro-styled Fabric client project.",
   "environment": "client",
   "entrypoints": {
-    "client": []
+  "client": [
+    "pl.donutclient.DonutClient"
+   ]
   },
   "depends": {
     "fabricloader": ">=0.17.2",
