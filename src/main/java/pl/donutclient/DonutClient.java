@@ -82,6 +82,7 @@ public class DonutClient implements ClientModInitializer {
             }
 
             updateFullbright(client);
+            Freecam.update(client, isEnabled("Freecam"));
         });
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> {
@@ -328,7 +329,7 @@ public class DonutClient implements ClientModInitializer {
         private boolean isSupported(String module) {
             return switch (module) {
                 case "HUD", "FPS Counter", "Coordinates",
-                     "Clock", "Fullbright" -> true;
+                "Clock", "Fullbright", "Freecam" -> true;
                 default -> false;
             };
         }
