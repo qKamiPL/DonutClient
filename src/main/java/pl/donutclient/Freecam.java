@@ -75,7 +75,10 @@ public final class Freecam {
         if (client.player == null || client.world == null) return;
 
         ArmorStandEntity stand =
-            EntityType.ARMOR_STAND.create(client.world);
+            EntityType.ARMOR_STAND.create(
+    client.world,
+    net.minecraft.entity.SpawnReason.TRIGGERED
+);
 
         if (stand == null) return;
 
