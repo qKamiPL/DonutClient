@@ -22,7 +22,7 @@ public class DonutClient implements ClientModInitializer {
                 "key.donutclient.open",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_RIGHT_CONTROL,
-                KeyBinding.Category.MISC
+                KeyBinding.MISC_CATEGORY
             )
         );
 
