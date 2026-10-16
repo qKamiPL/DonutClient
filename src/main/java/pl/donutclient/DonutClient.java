@@ -16,21 +16,15 @@ import org.lwjgl.glfw.GLFW;
 public class DonutClient implements ClientModInitializer {
     private KeyBinding openMenu;
 
-    private static final net.minecraft.client.option.KeyBinding.Category DONUT_CATEGORY =
-    net.minecraft.client.option.KeyBinding.Category.create(
-        Identifier.of("donutclient", "main")
-    );
-
     @Override
     public void onInitializeClient() {
         openMenu = KeyBindingHelper.registerKeyBinding(
             new KeyBinding(
-                "key.donutclient.open",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_RIGHT_CONTROL,
-                DONUT_CATEGORY
-            )
-        );
+    "key.donutclient.open",
+    InputUtil.Type.KEYSYM,
+    GLFW.GLFW_KEY_RIGHT_CONTROL,
+    KeyBinding.Category.MISC
+)
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenu.wasPressed()) {
