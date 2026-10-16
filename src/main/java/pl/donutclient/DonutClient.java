@@ -10,7 +10,6 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class DonutClient implements ClientModInitializer {
@@ -19,13 +18,13 @@ public class DonutClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         openMenu = KeyBindingHelper.registerKeyBinding(
-    new KeyBinding(
-        "key.donutclient.open",
-        InputUtil.Type.KEYSYM,
-        GLFW.GLFW_KEY_RIGHT_CONTROL,
-        DONUT_CATEGORY
-    )
-);
+            new KeyBinding(
+                "key.donutclient.open",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_RIGHT_CONTROL,
+                KeyBinding.Category.MISC
+            )
+        );
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenu.wasPressed()) {
