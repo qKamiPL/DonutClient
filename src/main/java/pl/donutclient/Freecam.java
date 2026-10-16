@@ -95,7 +95,7 @@ public final class Freecam {
         stand.noClip = true;
 
         camera = stand;
-        client.world.addEntity(-123456, stand);
+        client.world.addEntity(stand);
         client.setCameraEntity(stand);
         active = true;
     }
