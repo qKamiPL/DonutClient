@@ -19,12 +19,13 @@ public class DonutClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         openMenu = KeyBindingHelper.registerKeyBinding(
-            new KeyBinding(
-    "key.donutclient.open",
-    InputUtil.Type.KEYSYM,
-    GLFW.GLFW_KEY_RIGHT_CONTROL,
-    KeyBinding.Category.MISC
-)
+    new KeyBinding(
+        "key.donutclient.open",
+        InputUtil.Type.KEYSYM,
+        GLFW.GLFW_KEY_RIGHT_CONTROL,
+        DONUT_CATEGORY
+    )
+);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenu.wasPressed()) {
