@@ -4,19 +4,64 @@ package pl.donutclient;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
+
 import org.lwjgl.glfw.GLFW;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class DonutClient implements ClientModInitializer {
     private KeyBinding openMenu;
+    private static DonutScreen menu;
+
+    private static final Map<String, Boolean> enabled = new LinkedHashMap<>();
+
+    private static double oldGamma = 0.5;
+    private static boolean gammaSaved = false;
+
+    private static final String[][] CATEGORIES = {
+        {"COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"}
+    };
+
+    private static final String[][] MODULES = {
+        {
+            "HUD", "FPS Counter", "CPS Counter",
+            "Coordinates", "Clock"
+        },
+        {
+            "Fullbright", "Zoom", "Keystrokes",
+            "Armor HUD", "Crosshair"
+        },
+        {
+            "Freecam", "Base Finder", "Spawner Finder",
+            "Storage Finder", "Player ESP", "X-Ray"
+        },
+        {
+            "Animations", "Particles", "Clean Screen",
+            "Low Fire"
+        },
+        {
+            "Dark Theme", "Smooth Animations",
+            "Show Descriptions"
+        }
+    };
 
     @Override
     public void onInitializeClient() {
+        for (String[] group : MODULES) {
+            for (String name : group) {
+                enabled.put(name, false);
+            }
+        }
+
         openMenu = KeyBindingHelper.registerKeyBinding(
             new KeyBinding(
                 "key.donutclient.open",
@@ -31,284 +76,315 @@ public class DonutClient implements ClientModInitializer {
                 if (client.currentScreen instanceof DonutScreen) {
                     client.setScreen(null);
                 } else {
-                    client.setScreen(new DonutScreen());
+                    menu = new DonutScreen();
+                    client.setScreen(menu);
                 }
+            }
+
+            updateFullbright(client);
+        });
+
+        HudRenderCallback.EVENT.register((context, tickCounter) -> {
+            MinecraftClient client = MinecraftClient.getInstance();
+
+            if (client.player == null || client.options == null) {
+                return;
+            }
+
+            int y = 8;
+
+            if (isEnabled("HUD")) {
+                context.drawTextWithShadow(
+                    client.textRenderer,
+                    Text.literal("DONUTCLIENT"),
+                    8, y, 0xFF20CFFF
+                );
+                y += 12;
+            }
+
+            if (isEnabled("FPS Counter")) {
+                context.drawTextWithShadow(
+                    client.textRenderer,
+                    Text.literal("FPS: " + client.getCurrentFps()),
+                    8, y, 0xFFFFFFFF
+                );
+                y += 12;
+            }
+
+            if (isEnabled("Coordinates")) {
+                var p = client.player.getBlockPos();
+                context.drawTextWithShadow(
+                    client.textRenderer,
+                    Text.literal("XYZ: " + p.getX() + " "
+                        + p.getY() + " " + p.getZ()),
+                    8, y, 0xFFFFFFFF
+                );
+                y += 12;
+            }
+
+            if (isEnabled("Clock")) {
+                context.drawTextWithShadow(
+                    client.textRenderer,
+                    Text.literal(java.time.LocalTime.now()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))),
+                    8, y, 0xFF20CFFF
+                );
             }
         });
     }
 
-    private static class DonutScreen extends Screen {
-        private String activeTab = "HOME";
-        private float animation = 0.0f;
+    private static boolean isEnabled(String name) {
+        return enabled.getOrDefault(name, false);
+    }
 
-        private static final int PANEL_WIDTH = 520;
-        private static final int PANEL_HEIGHT = 310;
-        private static final int SIDEBAR_WIDTH = 145;
+    private static void updateFullbright(MinecraftClient client) {
+        if (client.options == null) return;
+
+        if (isEnabled("Fullbright")) {
+            if (!gammaSaved) {
+                oldGamma = client.options.getGamma().getValue();
+                gammaSaved = true;
+            }
+
+            client.options.getGamma().setValue(1.0);
+        } else if (gammaSaved) {
+            client.options.getGamma().setValue(oldGamma);
+            gammaSaved = false;
+        }
+    }
+
+    private static class DonutScreen extends Screen {
+        private static final int BLUE = 0xFF20CFFF;
+        private static final int PANEL = 0xE90A1425;
+        private static final int BORDER = 0xFF17466B;
+        private static final int MUTED = 0xFF91B4D8;
+
+        private float animation = 0;
+        private int scroll = 0;
 
         protected DonutScreen() {
             super(Text.literal("DonutClient"));
         }
 
-        private void switchTab(String tab) {
-            if (!activeTab.equals(tab)) {
-                activeTab = tab;
-                animation = 0.0f;
-            }
-        }
-
         @Override
-        protected void init() {
-            clearChildren();
-
-            int x = (width - PANEL_WIDTH) / 2;
-            int y = (height - PANEL_HEIGHT) / 2;
-
-            addDrawableChild(ButtonWidget.builder(
-                Text.literal("HOME"),
-                button -> switchTab("HOME")
-            ).dimensions(x + 12, y + 60, 121, 25).build());
-
-            addDrawableChild(ButtonWidget.builder(
-                Text.literal("VISUALS"),
-                button -> switchTab("VISUALS")
-            ).dimensions(x + 12, y + 92, 121, 25).build());
-
-            addDrawableChild(ButtonWidget.builder(
-                Text.literal("SETTINGS"),
-                button -> switchTab("SETTINGS")
-            ).dimensions(x + 12, y + 124, 121, 25).build());
-
-            addDrawableChild(ButtonWidget.builder(
-                Text.literal("ABOUT"),
-                button -> switchTab("ABOUT")
-            ).dimensions(x + 12, y + 156, 121, 25).build());
-
-            addDrawableChild(ButtonWidget.builder(
-                Text.literal("CLOSE MENU"),
-                button -> close()
-            ).dimensions(x + PANEL_WIDTH - 130, y + PANEL_HEIGHT - 39, 115, 25).build());
+        public boolean shouldPause() {
+            return false;
         }
 
         @Override
         public void render(
             DrawContext context, int mouseX, int mouseY, float delta
         ) {
-            context.fill(0, 0, this.width, this.height, 0x90000000);
+            // Avoid renderBackground(): it can blur twice per frame.
+            context.fill(0, 0, width, height, 0x65000000);
 
-            animation = Math.min(1.0f, animation + 0.09f);
+            animation = Math.min(1.0f, animation + delta * 3.5f);
 
-            int x = (width - PANEL_WIDTH) / 2;
-            int y = (height - PANEL_HEIGHT) / 2;
+            int margin = 12;
+            int gap = 7;
+            int headerHeight = 43;
+            int available = width - margin * 2;
+            int colWidth = (available - gap * 4) / 5;
+            int startY = margin + headerHeight;
 
-            int contentOffset = (int) ((1.0f - animation) * 18);
-            int contentX = x + SIDEBAR_WIDTH + 20 + contentOffset;
-            int contentY = y + 65;
-
-            // Main panel and retro accents
-            context.fill(
-                x - 2, y - 2,
-                x + PANEL_WIDTH + 2, y + PANEL_HEIGHT + 2,
-                0xFF080B12
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal("⚙ DONUT CLIENT"),
+                margin + 2, margin + 3, BLUE
             );
 
-            context.fill(
-                x, y, x + PANEL_WIDTH, y + PANEL_HEIGHT,
-                0xF0121725
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal("RETRO MODULE PANEL  /  1.0.0"),
+                margin + 3, margin + 19, MUTED
             );
 
-            context.fill(
-                x, y, x + PANEL_WIDTH, y + 3,
-                0xFF438AFF
-            );
-
-            // Sidebar
-            context.fill(
-                x, y + 3,
-                x + SIDEBAR_WIDTH, y + PANEL_HEIGHT,
-                0xFF0C111D
-            );
-
-            context.fill(
-                x + SIDEBAR_WIDTH, y + 3,
-                x + SIDEBAR_WIDTH + 1, y + PANEL_HEIGHT,
-                0xFF30394B
-            );
-
-            // Active tab indicator
-            int activeIndex = switch (activeTab) {
-                case "VISUALS" -> 1;
-                case "SETTINGS" -> 2;
-                case "ABOUT" -> 3;
-                default -> 0;
+            String[] categories = {
+                "COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"
             };
 
-            int activeY = y + 60 + activeIndex * 32;
+            int maxRows = 0;
+            for (String[] group : MODULES) {
+                maxRows = Math.max(maxRows, group.length);
+            }
 
-            context.fill(
-                x + 7, activeY,
-                x + 137, activeY + 25,
-                0xFF202F49
-            );
+            for (int c = 0; c < 5; c++) {
+                int x = margin + c * (colWidth + gap);
+                String category = categories[c];
 
-            context.fill(
-                x + 7, activeY,
-                x + 10, activeY + 25,
-                0xFF438AFF
-            );
+                int panelHeight = 34 + MODULES[c].length * 31;
+                panelHeight = Math.min(panelHeight, height - startY - 10);
 
-            // Header
-            context.drawTextWithShadow(
-                textRenderer,
-                Text.literal("DONUTCLIENT"),
-                x + 15, y + 18,
-                0xFFFFFFFF
-            );
+                context.fill(
+                    x - 1, startY - 1,
+                    x + colWidth + 1, startY + panelHeight + 1,
+                    0xFF030914
+                );
 
-            context.drawTextWithShadow(
-                textRenderer,
-                Text.literal("RETRO EDITION  /  1.0"),
-                x + 15, y + 35,
-                0xFF7186A8
-            );
+                context.fill(
+                    x, startY,
+                    x + colWidth, startY + panelHeight,
+                    PANEL
+                );
 
-            context.drawTextWithShadow(
-                textRenderer,
-                Text.literal("CLIENT MENU"),
-                x + SIDEBAR_WIDTH + 20,
-                y + 20,
-                0xFF438AFF
-            );
+                context.fill(
+                    x, startY, x + colWidth, startY + 2, BORDER
+                );
 
-            context.fill(
-                x + SIDEBAR_WIDTH + 20, y + 42,
-                x + PANEL_WIDTH - 15, y + 43,
-                0xFF30394B
-            );
+                context.drawTextWithShadow(
+                    textRenderer,
+                    Text.literal(category),
+                    x + 9, startY + 11, BLUE
+                );
 
-            // Tab content
-            switch (activeTab) {
-                case "VISUALS" -> {
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("VISUALS"),
-                        contentX, contentY, 0xFFFFFFFF
-                    );
+                context.fill(
+                    x + 7, startY + 29,
+                    x + colWidth - 7, startY + 30, BORDER
+                );
 
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Visual options"),
-                        contentX, contentY + 28, 0xFF9AAAC4
-                    );
+                int rowY = startY + 36 - scroll;
 
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("This page is ready for"),
-                        contentX, contentY + 55, 0xFFD5DEEF
-                    );
+                for (String module : MODULES[c]) {
+                    if (rowY + 27 < startY + 32
+                        || rowY > startY + panelHeight) {
+                        rowY += 31;
+                        continue;
+                    }
 
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("visual and accessibility settings."),
-                        contentX, contentY + 69, 0xFFD5DEEF
-                    );
-                }
+                    boolean active = isEnabled(module);
+                    boolean supported = isSupported(module);
 
-                case "SETTINGS" -> {
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("SETTINGS"),
-                        contentX, contentY, 0xFFFFFFFF
-                    );
+                    int cardColor = active
+                        ? 0xFF103A59
+                        : 0xCC0A192B;
 
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Interface settings"),
-                        contentX, contentY + 28, 0xFF9AAAC4
-                    );
-
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Menu key: RIGHT CTRL"),
-                        contentX, contentY + 55, 0xFFD5DEEF
-                    );
-
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Design: Retro / Blue"),
-                        contentX, contentY + 75, 0xFFD5DEEF
-                    );
-                }
-
-                case "ABOUT" -> {
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("ABOUT DONUTCLIENT"),
-                        contentX, contentY, 0xFFFFFFFF
-                    );
-
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Version 1.0.0"),
-                        contentX, contentY + 30, 0xFFD5DEEF
-                    );
-
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Fabric  /  Minecraft 1.21.8"),
-                        contentX, contentY + 50, 0xFF9AAAC4
-                    );
-
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Made for your own Minecraft setup."),
-                        contentX, contentY + 80, 0xFF9AAAC4
-                    );
-                }
-
-                default -> {
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("WELCOME BACK"),
-                        contentX, contentY, 0xFFFFFFFF
-                    );
-
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Your Minecraft client dashboard."),
-                        contentX, contentY + 30, 0xFFD5DEEF
+                    context.fill(
+                        x + 6, rowY,
+                        x + colWidth - 6, rowY + 27,
+                        cardColor
                     );
 
                     context.fill(
-                        contentX, contentY + 60,
-                        contentX + 290, contentY + 105,
-                        0xFF192438
+                        x + 6, rowY,
+                        x + 7, rowY + 27,
+                        active ? BLUE : BORDER
                     );
+
+                    String label = module;
+                    int maxTextWidth = colWidth - 42;
+
+                    while (!label.isEmpty()
+                        && textRenderer.getWidth(label) > maxTextWidth) {
+                        label = label.substring(0, label.length() - 1);
+                    }
+
+                    if (!label.equals(module) && label.length() > 2) {
+                        label = label.substring(0, label.length() - 2) + "..";
+                    }
+
+                    context.drawTextWithShadow(
+                        textRenderer,
+                        Text.literal(label),
+                        x + 12, rowY + 9,
+                        active ? BLUE : 0xFFD8E8FA
+                    );
+
+                    int sx = x + colWidth - 34;
+                    int sy = rowY + 7;
 
                     context.fill(
-                        contentX, contentY + 60,
-                        contentX + 3, contentY + 105,
-                        0xFF438AFF
+                        sx, sy, sx + 23, sy + 13,
+                        active ? 0xFF00AEEF : 0xFF30435B
                     );
 
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("DONUTCLIENT"),
-                        contentX + 14, contentY + 72,
-                        0xFFFFFFFF
+                    int knobX = active ? sx + 13 : sx + 2;
+                    context.fill(
+                        knobX, sy + 2,
+                        knobX + 9, sy + 11,
+                        active ? 0xFFFFFFFF : 0xFF9CB3CF
                     );
 
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Retro interface loaded"),
-                        contentX + 14, contentY + 87,
-                        0xFF9AAAC4
-                    );
+                    if (!supported) {
+                        context.fill(
+                            x + colWidth - 9, rowY,
+                            x + colWidth - 6, rowY + 27,
+                            0xFF24374A
+                        );
+                    }
 
-                    context.drawTextWithShadow(
-                        textRenderer, Text.literal("Select a page from the sidebar."),
-                        contentX, contentY + 125,
-                        0xFF9AAAC4
-                    );
+                    rowY += 31;
                 }
             }
 
             context.drawTextWithShadow(
                 textRenderer,
-                Text.literal("DONUTCLIENT  /  READY"),
-                x + 15, y + PANEL_HEIGHT - 22,
-                0xFF7186A8
+                Text.literal("RIGHT CTRL  •  CLOSE"),
+                margin + 2, height - 13, MUTED
             );
 
             super.render(context, mouseX, mouseY, delta);
         }
 
+        private boolean isSupported(String module) {
+            return switch (module) {
+                case "HUD", "FPS Counter", "Coordinates",
+                     "Clock", "Fullbright" -> true;
+                default -> false;
+            };
+        }
+
         @Override
-        public boolean shouldPause() {
-            return false;
+        public boolean mouseClicked(
+            double mouseX, double mouseY, int button
+        ) {
+            if (button != 0) {
+                return super.mouseClicked(mouseX, mouseY, button);
+            }
+
+            int margin = 12;
+            int gap = 7;
+            int colWidth = (width - margin * 2 - gap * 4) / 5;
+            int startY = margin + 43;
+
+            for (int c = 0; c < 5; c++) {
+                int x = margin + c * (colWidth + gap);
+                int panelHeight = Math.min(
+                    34 + MODULES[c].length * 31,
+                    height - startY - 10
+                );
+
+                if (mouseX < x || mouseX > x + colWidth
+                    || mouseY < startY + 32
+                    || mouseY > startY + panelHeight) {
+                    continue;
+                }
+
+                int row = (int) ((mouseY - (startY + 36) + scroll) / 31);
+
+                if (row < 0 || row >= MODULES[c].length) {
+                    return true;
+                }
+
+                String module = MODULES[c][row];
+
+                if (!isSupported(module)) {
+                    return true;
+                }
+
+                enabled.put(module, !isEnabled(module));
+                return true;
+            }
+
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
+        @Override
+        public boolean mouseScrolled(
+            double mouseX, double mouseY, double horizontalAmount,
+            double verticalAmount
+        ) {
+            scroll = Math.max(0, Math.min(100, scroll - (int) (verticalAmount * 25)));
+            return true;
         }
     }
 }
