@@ -45,10 +45,9 @@ public final class Freecam {
 
         if (!active || camera == null) return;
 
-        double speed = client.options.sprintKey.isPressed()
-            ? 0.8 : 0.25;
-
+        double speed = client.options.sprintKey.isPressed() ? 0.8 : 0.25;
         double radians = Math.toRadians(camera.getYaw());
+
         double forwardX = -Math.sin(radians);
         double forwardZ = Math.cos(radians);
         double rightX = Math.cos(radians);
@@ -81,7 +80,6 @@ public final class Freecam {
 
         if (movement.lengthSquared() > 0) {
             movement = movement.normalize().multiply(speed);
-
             camera.setPosition(
                 camera.getX() + movement.x,
                 camera.getY() + movement.y,
