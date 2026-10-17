@@ -123,29 +123,35 @@ public final class FinderModules {
         }
     }
 
-    private static boolean isStorage(Block block) {
-        return block == Blocks.CHEST
-            || block == Blocks.TRAPPED_CHEST
-            || block == Blocks.BARREL
-            || block == Blocks.ENDER_CHEST
-            || block == Blocks.SHULKER_BOX
-            || block == Blocks.WHITE_SHULKER_BOX
-            || block == Blocks.ORANGE_SHULKER_BOX
-            || block == Blocks.MAGENTA_SHULKER_BOX
-            || block == Blocks.LIGHT_BLUE_SHULKER_BOX
-            || block == Blocks.YELLOW_SHULKER_BOX
-            || block == Blocks.LIME_SHULKER_BOX
-            || block == Blocks.PINK_SHULKER_BOX
-            || block == Blocks.GRAY_SHULKER_BOX
-            || block == Blocks.LIGHT_GRAY_SHULKER_BOX
-            || block == Blocks.CYAN_SHULKER_BOX
-            || block == Blocks.PURPLE_SHULKER_BOX
-            || block == Blocks.BLUE_SHULKER_BOX
-            || block == Blocks.BROWN_SHULKER_BOX
-            || block == Blocks.GREEN_SHULKER_BOX
-            || block == Blocks.RED_SHULKER_BOX
-            || block == Blocks.BLACK_SHULKER_BOX;
-    }
+   
+private static boolean isBaseClue(Block block) {
+    return isStorage(block)
+        || block == Blocks.CRAFTING_TABLE
+        || block == Blocks.FURNACE
+        || block == Blocks.BLAST_FURNACE
+        || block == Blocks.SMOKER
+        || block == Blocks.ANVIL
+        || block == Blocks.CHIPPED_ANVIL
+        || block == Blocks.DAMAGED_ANVIL
+        || block == Blocks.WHITE_BED
+        || block == Blocks.ORANGE_BED
+        || block == Blocks.MAGENTA_BED
+        || block == Blocks.LIGHT_BLUE_BED
+        || block == Blocks.YELLOW_BED
+        || block == Blocks.LIME_BED
+        || block == Blocks.PINK_BED
+        || block == Blocks.GRAY_BED
+        || block == Blocks.LIGHT_GRAY_BED
+        || block == Blocks.CYAN_BED
+        || block == Blocks.PURPLE_BED
+        || block == Blocks.BLUE_BED
+        || block == Blocks.BROWN_BED
+        || block == Blocks.GREEN_BED
+        || block == Blocks.RED_BED
+        || block == Blocks.BLACK_BED
+        || block == Blocks.RESPAWN_ANCHOR
+        || block == Blocks.ENCHANTING_TABLE;
+}
 
     private static boolean isBaseClue(Block block) {
         return isStorage(block)
