@@ -20,6 +20,14 @@ dependencies {
     mappings 'net.fabricmc:yarn:1.21.8+build.1:v2'
     modImplementation 'net.fabricmc:fabric-loader:0.17.2'
     modImplementation 'net.fabricmc.fabric-api:fabric-api:0.133.4+1.21.8'
+
+    annotationProcessor 'net.fabricmc:sponge-mixin:0.15.4+mixin.0.8.7'
+}
+
+loom {
+    mixin {
+        defaultRefmapName = 'donutclient-refmap.json'
+    }
 }
 
 processResources {
