@@ -83,6 +83,12 @@ public class DonutClient implements ClientModInitializer {
 
             updateFullbright(client);
             Freecam.update(client, isEnabled("Freecam"));
+            FinderModules.update(
+    client,
+    isEnabled("Storage Finder"),
+    isEnabled("Spawner Finder"),
+    isEnabled("Base Finder")
+);
         });
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> {
@@ -329,7 +335,8 @@ public class DonutClient implements ClientModInitializer {
         private boolean isSupported(String module) {
             return switch (module) {
                 case "HUD", "FPS Counter", "Coordinates",
-                "Clock", "Fullbright", "Freecam" -> true;
+     "Clock", "Fullbright", "Freecam",
+     "Storage Finder", "Spawner Finder", "Base Finder" -> true;
                 default -> false;
             };
         }
