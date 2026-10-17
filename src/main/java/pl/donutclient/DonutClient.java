@@ -11,21 +11,26 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 import org.lwjgl.glfw.GLFW;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Locale;
 
 public class DonutClient implements ClientModInitializer {
+
     private KeyBinding openMenu;
-    private static DonutScreen menu;
 
-    private static final Map<String, Boolean> enabled = new LinkedHashMap<>();
+    private static final Map<String, Boolean> enabled =
+        new LinkedHashMap<>();
 
-    private static double oldGamma = 0.5;
+    private static final double DEFAULT_GAMMA = 0.5;
+    private static double oldGamma = DEFAULT_GAMMA;
     private static boolean gammaSaved = false;
 
     private static final String[][] MODULES = {
@@ -51,16 +56,25 @@ public class DonutClient implements ClientModInitializer {
         }
     };
 
+    private static final String[] CATEGORIES = {
+        "COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"
+    };
+
+    public static boolean isEnabled(String name) {
+        return enabled.getOrDefault(name, false);
+    }
+
+    private static void setEnabled(String name, boolean value) {
+        enabled.put(name, value);
+    }
+
     @Override
     public void onInitializeClient() {
         for (String[] group : MODULES) {
-            for (String name : group) {
-                enabled.put(name, false);
+            for (String module : group) {
+                enabled.put(module, false);
             }
         }
-
-        // Register the 3D ESP renderer.
-        FinderEsp.register();
 
         openMenu = KeyBindingHelper.registerKeyBinding(
             new KeyBinding(
@@ -71,13 +85,14 @@ public class DonutClient implements ClientModInitializer {
             )
         );
 
+        FinderEsp.register();
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenu.wasPressed()) {
                 if (client.currentScreen instanceof DonutScreen) {
                     client.setScreen(null);
                 } else {
-                    menu = new DonutScreen();
-                    client.setScreen(menu);
+                    client.setScreen(new DonutScreen());
                 }
             }
 
@@ -100,7 +115,9 @@ public class DonutClient implements ClientModInitializer {
         HudRenderCallback.EVENT.register((context, tickCounter) -> {
             MinecraftClient client = MinecraftClient.getInstance();
 
-            if (client.player == null || client.options == null) return;
+            if (client.player == null || client.options == null) {
+                return;
+            }
 
             int y = 8;
 
@@ -108,7 +125,7 @@ public class DonutClient implements ClientModInitializer {
                 context.drawTextWithShadow(
                     client.textRenderer,
                     Text.literal("DONUTCLIENT"),
-                    8, y, 0xFF20CFFF
+                    8, y, 0xFF36B9FF
                 );
                 y += 12;
             }
@@ -123,11 +140,14 @@ public class DonutClient implements ClientModInitializer {
             }
 
             if (isEnabled("Coordinates")) {
-                var p = client.player.getBlockPos();
+                var pos = client.player.getBlockPos();
+
                 context.drawTextWithShadow(
                     client.textRenderer,
-                    Text.literal("XYZ: " + p.getX() + " "
-                        + p.getY() + " " + p.getZ()),
+                    Text.literal(
+                        "XYZ: " + pos.getX() + " "
+                            + pos.getY() + " " + pos.getZ()
+                    ),
                     8, y, 0xFFFFFFFF
                 );
                 y += 12;
@@ -136,58 +156,39 @@ public class DonutClient implements ClientModInitializer {
             if (isEnabled("Clock")) {
                 context.drawTextWithShadow(
                     client.textRenderer,
-                    Text.literal(java.time.LocalTime.now()
-                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))),
-                    8, y, 0xFF20CFFF
+                    Text.literal(
+                        LocalTime.now().format(
+                            DateTimeFormatter.ofPattern("HH:mm:ss")
+                        )
+                    ),
+                    8, y, 0xFF36B9FF
                 );
                 y += 12;
             }
 
-            boolean showStorage = isEnabled("Storage Finder");
-            boolean showSpawner = isEnabled("Spawner Finder");
+            if (isEnabled("Base Finder")
+                || isEnabled("Storage Finder")
+                || isEnabled("Spawner Finder")) {
 
-            if (!showStorage && !showSpawner) return;
+                for (FinderModules.Result result : FinderModules.getResults()) {
+                    String label = result.type() + " "
+                        + result.pos().getX() + " "
+                        + result.pos().getY() + " "
+                        + result.pos().getZ();
 
-            context.drawTextWithShadow(
-                client.textRenderer,
-                Text.literal("FINDER ESP"),
-                8, y, 0xFF20CFFF
-            );
-            y += 12;
+                    context.drawTextWithShadow(
+                        client.textRenderer,
+                        Text.literal(label),
+                        8, y, 0xFF36B9FF
+                    );
+                    y += 12;
 
-            int shown = 0;
-
-            for (FinderModules.Result result : FinderModules.getResults()) {
-                boolean spawner = result.type().equals("Spawner");
-
-                if (spawner && !showSpawner) continue;
-                if (!spawner && !showStorage) continue;
-
-                var pos = result.pos();
-
-                String distance = String.format(
-                    Locale.ROOT, "%.1f", result.distance()
-                );
-
-                String line = (spawner ? "[SPAWNER] " : "[STORAGE] ")
-                    + pos.getX() + " " + pos.getY() + " " + pos.getZ()
-                    + "  " + distance + "m";
-
-                context.drawTextWithShadow(
-                    client.textRenderer,
-                    Text.literal(line),
-                    8, y,
-                    spawner ? 0xFFBF70FF : 0xFF20CFFF
-                );
-
-                y += 11;
-                if (++shown >= 10) break;
+                    if (y > client.getWindow().getScaledHeight() - 20) {
+                        break;
+                    }
+                }
             }
         });
-    }
-
-    private static boolean isEnabled(String name) {
-        return enabled.getOrDefault(name, false);
     }
 
     private static void updateFullbright(MinecraftClient client) {
@@ -207,16 +208,49 @@ public class DonutClient implements ClientModInitializer {
     }
 
     private static class DonutScreen extends Screen {
-        private static final int BLUE = 0xFF20CFFF;
-        private static final int PANEL = 0xE90A1425;
-        private static final int BORDER = 0xFF17466B;
-        private static final int MUTED = 0xFF91B4D8;
 
-        private float animation = 0;
+        private static final int BLUE = 0xFF36B9FF;
+        private static final int PANEL = 0xF20D1422;
+        private static final int CARD = 0xFF151F30;
+        private static final int BORDER = 0xFF26364D;
+        private static final int TEXT = 0xFFF0F6FF;
+        private static final int MUTED = 0xFF879BB5;
+
+        private TextFieldWidget searchField;
+
+        private float openAnimation = 0.0f;
+        private int selectedCategory = -1;
         private int scroll = 0;
+
+        private final Map<String, Float> toggleAnimations =
+            new HashMap<>();
 
         protected DonutScreen() {
             super(Text.literal("DonutClient"));
+        }
+
+        @Override
+        protected void init() {
+            int panelWidth = (int) (width * 0.92);
+            int panelHeight = (int) (height * 0.88);
+            int panelX = (width - panelWidth) / 2;
+            int panelY = (height - panelHeight) / 2;
+
+            searchField = new TextFieldWidget(
+                textRenderer,
+                panelX + 218,
+                panelY + 19,
+                Math.max(130, panelWidth - 260),
+                24,
+                Text.literal("Search modules")
+            );
+
+            searchField.setPlaceholder(
+                Text.literal("Search modules...")
+            );
+            searchField.setMaxLength(40);
+
+            addDrawableChild(searchField);
         }
 
         @Override
@@ -226,129 +260,306 @@ public class DonutClient implements ClientModInitializer {
 
         @Override
         public void render(
-            DrawContext context, int mouseX, int mouseY, float delta
+            DrawContext context,
+            int mouseX,
+            int mouseY,
+            float delta
         ) {
-            context.fill(0, 0, width, height, 0x65000000);
-            animation = Math.min(1.0f, animation + delta * 3.5f);
+            openAnimation = Math.min(
+                1.0f,
+                openAnimation + delta * 4.0f
+            );
 
-            int margin = 12;
-            int gap = 7;
-            int headerHeight = 43;
-            int available = width - margin * 2;
-            int colWidth = (available - gap * 4) / 5;
-            int startY = margin + headerHeight;
+            float eased = 1.0f
+                - (1.0f - openAnimation) * (1.0f - openAnimation);
+
+            context.fill(0, 0, width, height, 0x99030912);
+
+            int panelWidth = (int) (width * 0.92);
+            int panelHeight = (int) (height * 0.88);
+            int panelX = (width - panelWidth) / 2;
+            int panelY = (height - panelHeight) / 2;
+
+            int animatedHeight = (int) (panelHeight * eased);
+            int animatedY = panelY
+                + (panelHeight - animatedHeight) / 2;
+
+            context.fill(
+                panelX - 2, animatedY - 2,
+                panelX + panelWidth + 2,
+                animatedY + animatedHeight + 2,
+                0xFF080E18
+            );
+
+            context.fill(
+                panelX, animatedY,
+                panelX + panelWidth,
+                animatedY + animatedHeight,
+                PANEL
+            );
+
+            context.fill(
+                panelX, animatedY,
+                panelX + panelWidth, animatedY + 3,
+                BLUE
+            );
+
+            if (openAnimation < 0.99f) {
+                super.render(context, mouseX, mouseY, delta);
+                return;
+            }
 
             context.drawTextWithShadow(
-                textRenderer, Text.literal("DONUT CLIENT"),
-                margin + 2, margin + 3, BLUE
+                textRenderer,
+                Text.literal("DONUT"),
+                panelX + 22, panelY + 18, BLUE
             );
 
             context.drawTextWithShadow(
-                textRenderer, Text.literal("RETRO MODULE PANEL / 1.0.0"),
-                margin + 3, margin + 19, MUTED
+                textRenderer,
+                Text.literal("CLIENT"),
+                panelX + 75, panelY + 18, TEXT
             );
 
-            String[] categories = {
-                "COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"
-            };
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal("MODIFICATION PANEL / 1.0.0"),
+                panelX + 22, panelY + 34, MUTED
+            );
 
-            for (int c = 0; c < 5; c++) {
-                int x = margin + c * (colWidth + gap);
-                int panelHeight = Math.min(
-                    34 + MODULES[c].length * 31,
-                    height - startY - 10
-                );
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal("RIGHT CTRL  •  CLOSE"),
+                panelX + panelWidth - 145,
+                panelY + 18, MUTED
+            );
 
-                context.fill(
-                    x - 1, startY - 1,
-                    x + colWidth + 1, startY + panelHeight + 1,
-                    0xFF030914
-                );
-                context.fill(
-                    x, startY, x + colWidth, startY + panelHeight, PANEL
-                );
-                context.fill(
-                    x, startY, x + colWidth, startY + 2, BORDER
-                );
+            int sidebarX = panelX + 12;
+            int sidebarY = panelY + 62;
+            int sidebarWidth = 174;
+            int bottomY = panelY + panelHeight - 25;
+
+            int contentX = sidebarX + sidebarWidth + 12;
+            int contentWidth = panelWidth - sidebarWidth - 42;
+
+            context.fill(
+                sidebarX, sidebarY,
+                sidebarX + sidebarWidth, bottomY,
+                0xCC0A111E
+            );
+
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal("NAVIGATION"),
+                sidebarX + 12, sidebarY + 12, MUTED
+            );
+
+            for (int i = 0; i < CATEGORIES.length; i++) {
+                int y = sidebarY + 34 + i * 38;
+
+                boolean selected = selectedCategory == i;
+                boolean hovered = mouseX >= sidebarX + 7
+                    && mouseX <= sidebarX + sidebarWidth - 7
+                    && mouseY >= y && mouseY <= y + 30;
+
+                if (selected || hovered) {
+                    context.fill(
+                        sidebarX + 7, y,
+                        sidebarX + sidebarWidth - 7, y + 30,
+                        selected ? 0xFF173650 : 0xFF192538
+                    );
+                }
+
+                if (selected) {
+                    context.fill(
+                        sidebarX + 7, y,
+                        sidebarX + 10, y + 30, BLUE
+                    );
+                }
 
                 context.drawTextWithShadow(
-                    textRenderer, Text.literal(categories[c]),
-                    x + 9, startY + 11, BLUE
-                );
-                context.fill(
-                    x + 7, startY + 29,
-                    x + colWidth - 7, startY + 30, BORDER
+                    textRenderer,
+                    Text.literal(CATEGORIES[i]),
+                    sidebarX + 19, y + 11,
+                    selected ? BLUE : TEXT
                 );
 
-                int rowY = startY + 36 - scroll;
+                int count = 0;
+                for (String module : MODULES[i]) {
+                    if (matchesSearch(module)) count++;
+                }
+
+                context.drawTextWithShadow(
+                    textRenderer,
+                    Text.literal(String.valueOf(count)),
+                    sidebarX + sidebarWidth - 24, y + 11, MUTED
+                );
+            }
+
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal(
+                    selectedCategory < 0
+                        ? "ALL MODULES"
+                        : CATEGORIES[selectedCategory] + " MODULES"
+                ),
+                contentX + 3, sidebarY + 8, TEXT
+            );
+
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal("Toggle a module to enable or disable it"),
+                contentX + 3, sidebarY + 23, MUTED
+            );
+
+            int gridY = sidebarY + 43;
+            int gridBottom = bottomY - 8;
+            int cardGap = 9;
+            int cardWidth = (contentWidth - cardGap) / 2;
+            int cardHeight = 39;
+            int rowGap = 7;
+            int row = 0;
+
+            for (int c = 0; c < MODULES.length; c++) {
+                if (selectedCategory >= 0 && selectedCategory != c) {
+                    continue;
+                }
 
                 for (String module : MODULES[c]) {
-                    if (rowY + 27 < startY + 32
-                        || rowY > startY + panelHeight) {
-                        rowY += 31;
+                    if (!matchesSearch(module)) continue;
+
+                    int col = row % 2;
+                    int visualRow = row / 2;
+
+                    int x = contentX
+                        + col * (cardWidth + cardGap);
+                    int y = gridY
+                        + visualRow * (cardHeight + rowGap) - scroll;
+
+                    row++;
+
+                    if (y + cardHeight < gridY || y > gridBottom) {
                         continue;
                     }
 
                     boolean active = isEnabled(module);
                     boolean supported = isSupported(module);
 
-                    context.fill(
-                        x + 6, rowY, x + colWidth - 6, rowY + 27,
-                        active ? 0xFF103A59 : 0xCC0A192B
+                    boolean hovered = mouseX >= x
+                        && mouseX <= x + cardWidth
+                        && mouseY >= y
+                        && mouseY <= y + cardHeight;
+
+                    float progress = toggleAnimations.getOrDefault(
+                        module, active ? 1.0f : 0.0f
                     );
+
+                    progress += ((active ? 1.0f : 0.0f) - progress)
+                        * Math.min(1.0f, delta * 12.0f);
+
+                    toggleAnimations.put(module, progress);
+
                     context.fill(
-                        x + 6, rowY, x + 7, rowY + 27,
+                        x, y, x + cardWidth, y + cardHeight,
+                        hovered ? 0xFF202E43 : CARD
+                    );
+
+                    context.fill(
+                        x, y, x + 2, y + cardHeight,
                         active ? BLUE : BORDER
                     );
 
-                    String label = module;
-                    int maxTextWidth = colWidth - 42;
-
-                    while (!label.isEmpty()
-                        && textRenderer.getWidth(label) > maxTextWidth) {
-                        label = label.substring(0, label.length() - 1);
-                    }
-
-                    if (!label.equals(module) && label.length() > 2) {
-                        label = label.substring(0, label.length() - 2) + "..";
-                    }
+                    context.drawTextWithShadow(
+                        textRenderer,
+                        Text.literal(module),
+                        x + 11, y + 8,
+                        active ? BLUE : TEXT
+                    );
 
                     context.drawTextWithShadow(
-                        textRenderer, Text.literal(label),
-                        x + 12, rowY + 9, active ? BLUE : 0xFFD8E8FA
+                        textRenderer,
+                        Text.literal(
+                            !supported ? "SOON" : active ? "ON" : "OFF"
+                        ),
+                        x + 11, y + 23,
+                        !supported ? MUTED : active ? BLUE : MUTED
                     );
 
-                    int sx = x + colWidth - 34;
-                    int sy = rowY + 7;
+                    int toggleX = x + cardWidth - 40;
+                    int toggleY = y + 11;
 
                     context.fill(
-                        sx, sy, sx + 23, sy + 13,
-                        active ? 0xFF00AEEF : 0xFF30435B
+                        toggleX, toggleY,
+                        toggleX + 30, toggleY + 16,
+                        blendColor(0xFF35445A, BLUE, progress)
                     );
 
-                    int knobX = active ? sx + 13 : sx + 2;
+                    int knobX = toggleX + 2
+                        + Math.round(progress * 14);
+
                     context.fill(
-                        knobX, sy + 2, knobX + 9, sy + 11,
-                        active ? 0xFFFFFFFF : 0xFF9CB3CF
+                        knobX, toggleY + 2,
+                        knobX + 12, toggleY + 14,
+                        0xFFF4F8FF
                     );
-
-                    if (!supported) {
-                        context.fill(
-                            x + colWidth - 9, rowY,
-                            x + colWidth - 6, rowY + 27, 0xFF24374A
-                        );
-                    }
-
-                    rowY += 31;
                 }
             }
 
+            if (row == 0) {
+                context.drawTextWithShadow(
+                    textRenderer,
+                    Text.literal("No modules found"),
+                    contentX + 8, gridY + 12, MUTED
+                );
+            }
+
+            context.fill(
+                panelX + 12, bottomY,
+                panelX + panelWidth - 12, bottomY + 1,
+                BORDER
+            );
+
             context.drawTextWithShadow(
-                textRenderer, Text.literal("RIGHT CTRL  •  CLOSE"),
-                margin + 2, height - 13, MUTED
+                textRenderer,
+                Text.literal("DONUTCLIENT"),
+                panelX + 18, bottomY + 8, BLUE
+            );
+
+            context.drawTextWithShadow(
+                textRenderer,
+                Text.literal("Minecraft 1.21.8  •  Fabric"),
+                panelX + panelWidth - 190,
+                bottomY + 8, MUTED
             );
 
             super.render(context, mouseX, mouseY, delta);
+        }
+
+        private boolean matchesSearch(String module) {
+            if (searchField == null) return true;
+
+            String query = searchField.getText()
+                .trim()
+                .toLowerCase(java.util.Locale.ROOT);
+
+            return query.isEmpty()
+                || module.toLowerCase(java.util.Locale.ROOT)
+                    .contains(query);
+        }
+
+        private int blendColor(int from, int to, float amount) {
+            amount = Math.max(0.0f, Math.min(1.0f, amount));
+
+            int a = (int) (((from >>> 24) & 255) * (1 - amount)
+                + ((to >>> 24) & 255) * amount);
+            int r = (int) (((from >>> 16) & 255) * (1 - amount)
+                + ((to >>> 16) & 255) * amount);
+            int g = (int) (((from >>> 8) & 255) * (1 - amount)
+                + ((to >>> 8) & 255) * amount);
+            int b = (int) ((from & 255) * (1 - amount)
+                + (to & 255) * amount);
+
+            return (a << 24) | (r << 16) | (g << 8) | b;
         }
 
         private boolean isSupported(String module) {
@@ -368,33 +579,67 @@ public class DonutClient implements ClientModInitializer {
                 return super.mouseClicked(mouseX, mouseY, button);
             }
 
-            int margin = 12;
-            int gap = 7;
-            int colWidth = (width - margin * 2 - gap * 4) / 5;
-            int startY = margin + 43;
+            int panelWidth = (int) (width * 0.92);
+            int panelHeight = (int) (height * 0.88);
+            int panelX = (width - panelWidth) / 2;
+            int panelY = (height - panelHeight) / 2;
 
-            for (int c = 0; c < 5; c++) {
-                int x = margin + c * (colWidth + gap);
-                int panelHeight = Math.min(
-                    34 + MODULES[c].length * 31,
-                    height - startY - 10
-                );
+            int sidebarX = panelX + 12;
+            int sidebarY = panelY + 62;
+            int sidebarWidth = 174;
+            int bottomY = panelY + panelHeight - 25;
 
-                if (mouseX < x || mouseX > x + colWidth
-                    || mouseY < startY + 32
-                    || mouseY > startY + panelHeight) {
+            for (int i = 0; i < CATEGORIES.length; i++) {
+                int y = sidebarY + 34 + i * 38;
+
+                if (mouseX >= sidebarX + 7
+                    && mouseX <= sidebarX + sidebarWidth - 7
+                    && mouseY >= y && mouseY <= y + 30) {
+                    selectedCategory = selectedCategory == i ? -1 : i;
+                    scroll = 0;
+                    return true;
+                }
+            }
+
+            int contentX = sidebarX + sidebarWidth + 12;
+            int contentWidth = panelWidth - sidebarWidth - 42;
+            int gridY = sidebarY + 43;
+            int gridBottom = bottomY - 8;
+            int cardGap = 9;
+            int cardWidth = (contentWidth - cardGap) / 2;
+            int cardHeight = 39;
+            int rowGap = 7;
+            int row = 0;
+
+            for (int c = 0; c < MODULES.length; c++) {
+                if (selectedCategory >= 0 && selectedCategory != c) {
                     continue;
                 }
 
-                int row = (int) ((mouseY - (startY + 36) + scroll) / 31);
+                for (String module : MODULES[c]) {
+                    if (!matchesSearch(module)) continue;
 
-                if (row < 0 || row >= MODULES[c].length) return true;
+                    int col = row % 2;
+                    int visualRow = row / 2;
 
-                String module = MODULES[c][row];
-                if (!isSupported(module)) return true;
+                    int x = contentX + col * (cardWidth + cardGap);
+                    int y = gridY
+                        + visualRow * (cardHeight + rowGap) - scroll;
 
-                enabled.put(module, !isEnabled(module));
-                return true;
+                    row++;
+
+                    if (y + cardHeight < gridY || y > gridBottom) {
+                        continue;
+                    }
+
+                    if (mouseX >= x && mouseX <= x + cardWidth
+                        && mouseY >= y && mouseY <= y + cardHeight) {
+                        if (!isSupported(module)) return true;
+
+                        setEnabled(module, !isEnabled(module));
+                        return true;
+                    }
+                }
             }
 
             return super.mouseClicked(mouseX, mouseY, button);
@@ -402,12 +647,16 @@ public class DonutClient implements ClientModInitializer {
 
         @Override
         public boolean mouseScrolled(
-            double mouseX, double mouseY,
-            double horizontalAmount, double verticalAmount
+            double mouseX,
+            double mouseY,
+            double horizontalAmount,
+            double verticalAmount
         ) {
             scroll = Math.max(
-                0, Math.min(100, scroll - (int) (verticalAmount * 25))
+                0,
+                Math.min(600, scroll - (int) (verticalAmount * 35))
             );
+
             return true;
         }
     }
