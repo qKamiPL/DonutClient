@@ -17,6 +17,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Locale;
 
 public class DonutClient implements ClientModInitializer {
     private KeyBinding openMenu;
@@ -26,10 +27,6 @@ public class DonutClient implements ClientModInitializer {
 
     private static double oldGamma = 0.5;
     private static boolean gammaSaved = false;
-
-    private static final String[][] CATEGORIES = {
-        {"COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"}
-    };
 
     private static final String[][] MODULES = {
         {
@@ -62,6 +59,9 @@ public class DonutClient implements ClientModInitializer {
             }
         }
 
+        // Register the 3D ESP renderer.
+        FinderEsp.register();
+
         openMenu = KeyBindingHelper.registerKeyBinding(
             new KeyBinding(
                 "key.donutclient.open",
@@ -83,20 +83,24 @@ public class DonutClient implements ClientModInitializer {
 
             updateFullbright(client);
             Freecam.update(client, isEnabled("Freecam"));
+
             FinderModules.update(
-    client,
-    isEnabled("Storage Finder"),
-    isEnabled("Spawner Finder"),
-    isEnabled("Base Finder")
-);
+                client,
+                isEnabled("Storage Finder"),
+                isEnabled("Spawner Finder"),
+                isEnabled("Base Finder")
+            );
+
+            FinderEsp.setEnabled(
+                isEnabled("Storage Finder"),
+                isEnabled("Spawner Finder")
+            );
         });
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> {
             MinecraftClient client = MinecraftClient.getInstance();
 
-            if (client.player == null || client.options == null) {
-                return;
-            }
+            if (client.player == null || client.options == null) return;
 
             int y = 8;
 
@@ -136,6 +140,48 @@ public class DonutClient implements ClientModInitializer {
                         .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))),
                     8, y, 0xFF20CFFF
                 );
+                y += 12;
+            }
+
+            boolean showStorage = isEnabled("Storage Finder");
+            boolean showSpawner = isEnabled("Spawner Finder");
+
+            if (!showStorage && !showSpawner) return;
+
+            context.drawTextWithShadow(
+                client.textRenderer,
+                Text.literal("FINDER ESP"),
+                8, y, 0xFF20CFFF
+            );
+            y += 12;
+
+            int shown = 0;
+
+            for (FinderModules.Result result : FinderModules.getResults()) {
+                boolean spawner = result.type().equals("Spawner");
+
+                if (spawner && !showSpawner) continue;
+                if (!spawner && !showStorage) continue;
+
+                var pos = result.pos();
+
+                String distance = String.format(
+                    Locale.ROOT, "%.1f", result.distance()
+                );
+
+                String line = (spawner ? "[SPAWNER] " : "[STORAGE] ")
+                    + pos.getX() + " " + pos.getY() + " " + pos.getZ()
+                    + "  " + distance + "m";
+
+                context.drawTextWithShadow(
+                    client.textRenderer,
+                    Text.literal(line),
+                    8, y,
+                    spawner ? 0xFFBF70FF : 0xFF20CFFF
+                );
+
+                y += 11;
+                if (++shown >= 10) break;
             }
         });
     }
@@ -182,9 +228,7 @@ public class DonutClient implements ClientModInitializer {
         public void render(
             DrawContext context, int mouseX, int mouseY, float delta
         ) {
-            // Avoid renderBackground(): it can blur twice per frame.
             context.fill(0, 0, width, height, 0x65000000);
-
             animation = Math.min(1.0f, animation + delta * 3.5f);
 
             int margin = 12;
@@ -195,14 +239,12 @@ public class DonutClient implements ClientModInitializer {
             int startY = margin + headerHeight;
 
             context.drawTextWithShadow(
-                textRenderer,
-                Text.literal("⚙ DONUT CLIENT"),
+                textRenderer, Text.literal("DONUT CLIENT"),
                 margin + 2, margin + 3, BLUE
             );
 
             context.drawTextWithShadow(
-                textRenderer,
-                Text.literal("RETRO MODULE PANEL  /  1.0.0"),
+                textRenderer, Text.literal("RETRO MODULE PANEL / 1.0.0"),
                 margin + 3, margin + 19, MUTED
             );
 
@@ -210,40 +252,29 @@ public class DonutClient implements ClientModInitializer {
                 "COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"
             };
 
-            int maxRows = 0;
-            for (String[] group : MODULES) {
-                maxRows = Math.max(maxRows, group.length);
-            }
-
             for (int c = 0; c < 5; c++) {
                 int x = margin + c * (colWidth + gap);
-                String category = categories[c];
-
-                int panelHeight = 34 + MODULES[c].length * 31;
-                panelHeight = Math.min(panelHeight, height - startY - 10);
+                int panelHeight = Math.min(
+                    34 + MODULES[c].length * 31,
+                    height - startY - 10
+                );
 
                 context.fill(
                     x - 1, startY - 1,
                     x + colWidth + 1, startY + panelHeight + 1,
                     0xFF030914
                 );
-
                 context.fill(
-                    x, startY,
-                    x + colWidth, startY + panelHeight,
-                    PANEL
+                    x, startY, x + colWidth, startY + panelHeight, PANEL
                 );
-
                 context.fill(
                     x, startY, x + colWidth, startY + 2, BORDER
                 );
 
                 context.drawTextWithShadow(
-                    textRenderer,
-                    Text.literal(category),
+                    textRenderer, Text.literal(categories[c]),
                     x + 9, startY + 11, BLUE
                 );
-
                 context.fill(
                     x + 7, startY + 29,
                     x + colWidth - 7, startY + 30, BORDER
@@ -261,19 +292,12 @@ public class DonutClient implements ClientModInitializer {
                     boolean active = isEnabled(module);
                     boolean supported = isSupported(module);
 
-                    int cardColor = active
-                        ? 0xFF103A59
-                        : 0xCC0A192B;
-
                     context.fill(
-                        x + 6, rowY,
-                        x + colWidth - 6, rowY + 27,
-                        cardColor
+                        x + 6, rowY, x + colWidth - 6, rowY + 27,
+                        active ? 0xFF103A59 : 0xCC0A192B
                     );
-
                     context.fill(
-                        x + 6, rowY,
-                        x + 7, rowY + 27,
+                        x + 6, rowY, x + 7, rowY + 27,
                         active ? BLUE : BORDER
                     );
 
@@ -290,10 +314,8 @@ public class DonutClient implements ClientModInitializer {
                     }
 
                     context.drawTextWithShadow(
-                        textRenderer,
-                        Text.literal(label),
-                        x + 12, rowY + 9,
-                        active ? BLUE : 0xFFD8E8FA
+                        textRenderer, Text.literal(label),
+                        x + 12, rowY + 9, active ? BLUE : 0xFFD8E8FA
                     );
 
                     int sx = x + colWidth - 34;
@@ -306,16 +328,14 @@ public class DonutClient implements ClientModInitializer {
 
                     int knobX = active ? sx + 13 : sx + 2;
                     context.fill(
-                        knobX, sy + 2,
-                        knobX + 9, sy + 11,
+                        knobX, sy + 2, knobX + 9, sy + 11,
                         active ? 0xFFFFFFFF : 0xFF9CB3CF
                     );
 
                     if (!supported) {
                         context.fill(
                             x + colWidth - 9, rowY,
-                            x + colWidth - 6, rowY + 27,
-                            0xFF24374A
+                            x + colWidth - 6, rowY + 27, 0xFF24374A
                         );
                     }
 
@@ -324,8 +344,7 @@ public class DonutClient implements ClientModInitializer {
             }
 
             context.drawTextWithShadow(
-                textRenderer,
-                Text.literal("RIGHT CTRL  •  CLOSE"),
+                textRenderer, Text.literal("RIGHT CTRL  •  CLOSE"),
                 margin + 2, height - 13, MUTED
             );
 
@@ -334,9 +353,9 @@ public class DonutClient implements ClientModInitializer {
 
         private boolean isSupported(String module) {
             return switch (module) {
-                case "HUD", "FPS Counter", "Coordinates",
-     "Clock", "Fullbright", "Freecam",
-     "Storage Finder", "Spawner Finder", "Base Finder" -> true;
+                case "HUD", "FPS Counter", "Coordinates", "Clock",
+                     "Fullbright", "Freecam", "Storage Finder",
+                     "Spawner Finder", "Base Finder" -> true;
                 default -> false;
             };
         }
@@ -369,15 +388,10 @@ public class DonutClient implements ClientModInitializer {
 
                 int row = (int) ((mouseY - (startY + 36) + scroll) / 31);
 
-                if (row < 0 || row >= MODULES[c].length) {
-                    return true;
-                }
+                if (row < 0 || row >= MODULES[c].length) return true;
 
                 String module = MODULES[c][row];
-
-                if (!isSupported(module)) {
-                    return true;
-                }
+                if (!isSupported(module)) return true;
 
                 enabled.put(module, !isEnabled(module));
                 return true;
@@ -388,10 +402,12 @@ public class DonutClient implements ClientModInitializer {
 
         @Override
         public boolean mouseScrolled(
-            double mouseX, double mouseY, double horizontalAmount,
-            double verticalAmount
+            double mouseX, double mouseY,
+            double horizontalAmount, double verticalAmount
         ) {
-            scroll = Math.max(0, Math.min(100, scroll - (int) (verticalAmount * 25)));
+            scroll = Math.max(
+                0, Math.min(100, scroll - (int) (verticalAmount * 25))
+            );
             return true;
         }
     }
