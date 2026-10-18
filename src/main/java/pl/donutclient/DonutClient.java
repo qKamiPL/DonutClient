@@ -156,9 +156,14 @@ public class DonutClient implements ClientModInitializer {
             return false;
         }
 
+        // Ważne: nadpisujemy metodę tła, żeby Screen nie uruchamiał blur.
+        @Override
+        public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+            context.fill(0, 0, this.width, this.height, 0x65000000);
+        }
+
         @Override
         public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-            // Celowo bez blur: unikamy konfliktu "Can only blur once per frame".
             context.fill(0, 0, width, height, 0x65000000);
 
             int margin = 12;
@@ -252,15 +257,14 @@ public class DonutClient implements ClientModInitializer {
                 textRenderer, Text.literal("RIGHT CTRL - CLOSE"),
                 margin + 2, height - 13, MUTED
             );
-
-            // Bez super.render(): nie wywołujemy dodatkowego renderowania ekranu.
         }
 
         private boolean isSupported(String module) {
             return switch (module) {
-                case "HUD", "FPS Counter", "CPS Counter", "Coordinates",
-                     "Clock", "Fullbright", "Freecam", "Halo Cyan",
-                     "Particle Aura", "Colored Chest ESP" -> true;
+                case "HUD", "FPS Counter", "CPS Counter",
+                     "Coordinates", "Clock", "Fullbright",
+                     "Freecam", "Halo Cyan", "Particle Aura",
+                     "Colored Chest ESP" -> true;
                 default -> false;
             };
         }
