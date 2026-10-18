@@ -19,7 +19,6 @@ public final class DonutVisuals {
     private static int cps = 0;
     private static int ticksSinceCpsReset = 0;
     private static int chestScanTicks = 0;
-
     private static boolean previousLeftMouseState = false;
 
     private DonutVisuals() {
@@ -31,7 +30,7 @@ public final class DonutVisuals {
     }
 
     private static void onClientTick(MinecraftClient client) {
-        if (client.player == null || client.world == null || client.getWindow() == null) {
+        if (client.player == null || client.world == null) {
             return;
         }
 
@@ -42,17 +41,16 @@ public final class DonutVisuals {
     }
 
     private static void updateCps(MinecraftClient client) {
-        boolean leftMouseDown = GLFW.glfwGetMouseButton(
+        boolean pressed = GLFW.glfwGetMouseButton(
                 client.getWindow().getHandle(),
                 GLFW.GLFW_MOUSE_BUTTON_LEFT
         ) == GLFW.GLFW_PRESS;
 
-        if (leftMouseDown && !previousLeftMouseState) {
+        if (pressed && !previousLeftMouseState) {
             cps++;
         }
 
-        previousLeftMouseState = leftMouseDown;
-
+        previousLeftMouseState = pressed;
         ticksSinceCpsReset++;
 
         if (ticksSinceCpsReset >= 20) {
@@ -68,20 +66,19 @@ public final class DonutVisuals {
 
         double time = client.player.age * 0.08;
         double radius = 0.65;
-        double centerX = client.player.getX();
-        double centerY = client.player.getY() + 2.15;
-        double centerZ = client.player.getZ();
+        double x0 = client.player.getX();
+        double y = client.player.getY() + 2.15;
+        double z0 = client.player.getZ();
 
         for (int i = 0; i < 3; i++) {
-            double angle = time + (Math.PI * 2.0 * i / 3.0);
+            double angle = time + Math.PI * 2.0 * i / 3.0;
 
-            double x = centerX + Math.cos(angle) * radius;
-            double z = centerZ + Math.sin(angle) * radius;
-
-            client.world.addParticle(
-                    x, centerY, z,
-                    0.0, 0.0,
-                    ParticleTypes.END_ROD
+            client.particleManager.addParticle(
+                    ParticleTypes.END_ROD,
+                    x0 + Math.cos(angle) * radius,
+                    y,
+                    z0 + Math.sin(angle) * radius,
+                    0.0, 0.0, 0.0
             );
         }
     }
@@ -97,15 +94,13 @@ public final class DonutVisuals {
         for (int i = 0; i < 2; i++) {
             double angle = time + Math.PI * i;
 
-            double x = client.player.getX() + Math.cos(angle) * radius;
-            double y = client.player.getY() + 0.5
-                    + Math.sin(time * 1.5 + i) * 0.35;
-            double z = client.player.getZ() + Math.sin(angle) * radius;
-
-            client.world.addParticle(
-                    x, y, z,
-                    0.0, 0.0,
-                    ParticleTypes.SOUL_FIRE_FLAME
+            client.particleManager.addParticle(
+                    ParticleTypes.SOUL_FIRE_FLAME,
+                    client.player.getX() + Math.cos(angle) * radius,
+                    client.player.getY() + 0.5
+                            + Math.sin(time * 1.5 + i) * 0.35,
+                    client.player.getZ() + Math.sin(angle) * radius,
+                    0.0, 0.01, 0.0
             );
         }
     }
@@ -116,11 +111,9 @@ public final class DonutVisuals {
         }
 
         chestScanTicks++;
-
         if (chestScanTicks < 6) {
             return;
         }
-
         chestScanTicks = 0;
 
         BlockPos playerPos = client.player.getBlockPos();
@@ -167,10 +160,10 @@ public final class DonutVisuals {
         };
 
         for (double[] corner : corners) {
-            client.world.addParticle(
+            client.particleManager.addParticle(
+                    ParticleTypes.END_ROD,
                     corner[0], corner[1], corner[2],
-                    0.0, 0.0,
-                    ParticleTypes.END_ROD
+                    0.0, 0.0, 0.0
             );
         }
     }
@@ -189,8 +182,7 @@ public final class DonutVisuals {
             context.drawText(
                     client.textRenderer,
                     Text.literal("CPS: " + cps),
-                    8,
-                    30,
+                    8, 30,
                     0xFFFFFF,
                     true
             );
