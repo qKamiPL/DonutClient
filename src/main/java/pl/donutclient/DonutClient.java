@@ -1,4 +1,3 @@
-
 package pl.donutclient;
 
 import net.fabricmc.api.ClientModInitializer;
@@ -20,27 +19,39 @@ import java.util.Map;
 
 public class DonutClient implements ClientModInitializer {
     private KeyBinding openMenu;
+    private static DonutScreen menu;
 
     private static final Map<String, Boolean> enabled = new LinkedHashMap<>();
 
     private static double oldGamma = 0.5;
     private static boolean gammaSaved = false;
 
-    private static final String[][] MODULES = {
-        {"HUD", "FPS Counter", "CPS Counter", "Coordinates", "Clock"},
-        {"Fullbright", "Zoom", "Keystrokes", "Armor HUD", "Crosshair"},
-        {"Freecam", "Base Finder", "Spawner Finder", "Storage Finder", "Player ESP", "X-Ray"},
-        {"Animations", "Particles", "Clean Screen", "Low Fire", "Halo Cyan", "Particle Aura", "Colored Chest ESP"},
-        {"Dark Theme", "Smooth Animations", "Show Descriptions"}
+    private static final String[][] CATEGORIES = {
+        {"COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"}
     };
 
-    public static boolean isModuleEnabled(String name) {
-        return enabled.getOrDefault(name, false);
-    }
-
-    private static void setEnabled(String name, boolean value) {
-        enabled.put(name, value);
-    }
+    private static final String[][] MODULES = {
+        {
+            "HUD", "FPS Counter", "CPS Counter",
+            "Coordinates", "Clock"
+        },
+        {
+            "Fullbright", "Zoom", "Keystrokes",
+            "Armor HUD", "Crosshair"
+        },
+        {
+            "Freecam", "Base Finder", "Spawner Finder",
+            "Storage Finder", "Player ESP", "X-Ray"
+        },
+        {
+            "Animations", "Particles", "Clean Screen",
+            "Low Fire"
+        },
+        {
+            "Dark Theme", "Smooth Animations",
+            "Show Descriptions"
+        }
+    };
 
     @Override
     public void onInitializeClient() {
@@ -64,15 +75,14 @@ public class DonutClient implements ClientModInitializer {
                 if (client.currentScreen instanceof DonutScreen) {
                     client.setScreen(null);
                 } else {
-                    client.setScreen(new DonutScreen());
+                    menu = new DonutScreen();
+                    client.setScreen(menu);
                 }
             }
 
             updateFullbright(client);
-            Freecam.update(client, isModuleEnabled("Freecam"));
+            Freecam.update(client, isEnabled("Freecam"));
         });
-
-        DonutVisuals.register();
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> {
             MinecraftClient client = MinecraftClient.getInstance();
@@ -83,15 +93,16 @@ public class DonutClient implements ClientModInitializer {
 
             int y = 8;
 
-            if (isModuleEnabled("HUD")) {
+            if (isEnabled("HUD")) {
                 context.drawTextWithShadow(
-                    client.textRenderer, Text.literal("DONUTCLIENT"),
+                    client.textRenderer,
+                    Text.literal("DONUTCLIENT"),
                     8, y, 0xFF20CFFF
                 );
                 y += 12;
             }
 
-            if (isModuleEnabled("FPS Counter")) {
+            if (isEnabled("FPS Counter")) {
                 context.drawTextWithShadow(
                     client.textRenderer,
                     Text.literal("FPS: " + client.getCurrentFps()),
@@ -100,38 +111,41 @@ public class DonutClient implements ClientModInitializer {
                 y += 12;
             }
 
-            if (isModuleEnabled("Coordinates")) {
+            if (isEnabled("Coordinates")) {
                 var p = client.player.getBlockPos();
                 context.drawTextWithShadow(
                     client.textRenderer,
-                    Text.literal("XYZ: " + p.getX() + " " + p.getY() + " " + p.getZ()),
+                    Text.literal("XYZ: " + p.getX() + " "
+                        + p.getY() + " " + p.getZ()),
                     8, y, 0xFFFFFFFF
                 );
                 y += 12;
             }
 
-            if (isModuleEnabled("Clock")) {
+            if (isEnabled("Clock")) {
                 context.drawTextWithShadow(
                     client.textRenderer,
-                    Text.literal(java.time.LocalTime.now().format(
-                        java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")
-                    )),
+                    Text.literal(java.time.LocalTime.now()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))),
                     8, y, 0xFF20CFFF
                 );
             }
         });
     }
 
-    private static void updateFullbright(MinecraftClient client) {
-        if (client.options == null) {
-            return;
-        }
+    private static boolean isEnabled(String name) {
+        return enabled.getOrDefault(name, false);
+    }
 
-        if (isModuleEnabled("Fullbright")) {
+    private static void updateFullbright(MinecraftClient client) {
+        if (client.options == null) return;
+
+        if (isEnabled("Fullbright")) {
             if (!gammaSaved) {
                 oldGamma = client.options.getGamma().getValue();
                 gammaSaved = true;
             }
+
             client.options.getGamma().setValue(1.0);
         } else if (gammaSaved) {
             client.options.getGamma().setValue(oldGamma);
@@ -145,6 +159,7 @@ public class DonutClient implements ClientModInitializer {
         private static final int BORDER = 0xFF17466B;
         private static final int MUTED = 0xFF91B4D8;
 
+        private float animation = 0;
         private int scroll = 0;
 
         protected DonutScreen() {
@@ -156,121 +171,174 @@ public class DonutClient implements ClientModInitializer {
             return false;
         }
 
-        // Ważne: nadpisujemy metodę tła, żeby Screen nie uruchamiał blur.
         @Override
-        public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-            context.fill(0, 0, this.width, this.height, 0x65000000);
-        }
-
-        @Override
-        public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        public void render(
+            DrawContext context, int mouseX, int mouseY, float delta
+        ) {
+            // Avoid renderBackground(): it can blur twice per frame.
             context.fill(0, 0, width, height, 0x65000000);
+
+            animation = Math.min(1.0f, animation + delta * 3.5f);
 
             int margin = 12;
             int gap = 7;
-            int colWidth = (width - margin * 2 - gap * 4) / 5;
-            int startY = margin + 43;
+            int headerHeight = 43;
+            int available = width - margin * 2;
+            int colWidth = (available - gap * 4) / 5;
+            int startY = margin + headerHeight;
 
             context.drawTextWithShadow(
-                textRenderer, Text.literal("DONUT CLIENT"),
+                textRenderer,
+                Text.literal("⚙ DONUT CLIENT"),
                 margin + 2, margin + 3, BLUE
             );
 
             context.drawTextWithShadow(
-                textRenderer, Text.literal("VISUAL CLIENT / 1.0.1"),
+                textRenderer,
+                Text.literal("RETRO MODULE PANEL  /  1.0.0"),
                 margin + 3, margin + 19, MUTED
             );
 
-            String[] categories = {"COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"};
+            String[] categories = {
+                "COMBAT", "MISC", "DONUT", "RENDER", "CLIENT"
+            };
 
-            for (int c = 0; c < MODULES.length; c++) {
+            int maxRows = 0;
+            for (String[] group : MODULES) {
+                maxRows = Math.max(maxRows, group.length);
+            }
+
+            for (int c = 0; c < 5; c++) {
                 int x = margin + c * (colWidth + gap);
-                int panelHeight = Math.max(40, Math.min(
-                    34 + MODULES[c].length * 31,
-                    height - startY - 10
-                ));
+                String category = categories[c];
 
-                context.fill(x - 1, startY - 1, x + colWidth + 1, startY + panelHeight + 1, 0xFF030914);
-                context.fill(x, startY, x + colWidth, startY + panelHeight, PANEL);
-                context.fill(x, startY, x + colWidth, startY + 2, BORDER);
+                int panelHeight = 34 + MODULES[c].length * 31;
+                panelHeight = Math.min(panelHeight, height - startY - 10);
+
+                context.fill(
+                    x - 1, startY - 1,
+                    x + colWidth + 1, startY + panelHeight + 1,
+                    0xFF030914
+                );
+
+                context.fill(
+                    x, startY,
+                    x + colWidth, startY + panelHeight,
+                    PANEL
+                );
+
+                context.fill(
+                    x, startY, x + colWidth, startY + 2, BORDER
+                );
 
                 context.drawTextWithShadow(
-                    textRenderer, Text.literal(categories[c]),
+                    textRenderer,
+                    Text.literal(category),
                     x + 9, startY + 11, BLUE
                 );
 
-                context.fill(x + 7, startY + 29, x + colWidth - 7, startY + 30, BORDER);
+                context.fill(
+                    x + 7, startY + 29,
+                    x + colWidth - 7, startY + 30, BORDER
+                );
 
                 int rowY = startY + 36 - scroll;
 
                 for (String module : MODULES[c]) {
-                    if (rowY + 27 >= startY + 32 && rowY <= startY + panelHeight) {
-                        boolean active = isModuleEnabled(module);
-                        boolean supported = isSupported(module);
-
-                        context.fill(
-                            x + 6, rowY, x + colWidth - 6, rowY + 27,
-                            active ? 0xFF103A59 : 0xCC0A192B
-                        );
-                        context.fill(
-                            x + 6, rowY, x + 7, rowY + 27,
-                            active ? BLUE : BORDER
-                        );
-
-                        String label = module;
-                        int maxWidth = Math.max(10, colWidth - 44);
-
-                        while (!label.isEmpty() && textRenderer.getWidth(label) > maxWidth) {
-                            label = label.substring(0, label.length() - 1);
-                        }
-                        if (!label.equals(module) && label.length() > 2) {
-                            label = label.substring(0, label.length() - 2) + "..";
-                        }
-
-                        context.drawTextWithShadow(
-                            textRenderer, Text.literal(label),
-                            x + 12, rowY + 9, active ? BLUE : 0xFFD8E8FA
-                        );
-
-                        int sx = x + colWidth - 34;
-                        int sy = rowY + 7;
-                        context.fill(
-                            sx, sy, sx + 23, sy + 13,
-                            active ? 0xFF00AEEF : 0xFF30435B
-                        );
-
-                        int knobX = active ? sx + 13 : sx + 2;
-                        context.fill(knobX, sy + 2, knobX + 9, sy + 11, 0xFFFFFFFF);
-
-                        if (!supported) {
-                            context.fill(
-                                x + colWidth - 9, rowY,
-                                x + colWidth - 6, rowY + 27, 0xFF24374A
-                            );
-                        }
+                    if (rowY + 27 < startY + 32
+                        || rowY > startY + panelHeight) {
+                        rowY += 31;
+                        continue;
                     }
+
+                    boolean active = isEnabled(module);
+                    boolean supported = isSupported(module);
+
+                    int cardColor = active
+                        ? 0xFF103A59
+                        : 0xCC0A192B;
+
+                    context.fill(
+                        x + 6, rowY,
+                        x + colWidth - 6, rowY + 27,
+                        cardColor
+                    );
+
+                    context.fill(
+                        x + 6, rowY,
+                        x + 7, rowY + 27,
+                        active ? BLUE : BORDER
+                    );
+
+                    String label = module;
+                    int maxTextWidth = colWidth - 42;
+
+                    while (!label.isEmpty()
+                        && textRenderer.getWidth(label) > maxTextWidth) {
+                        label = label.substring(0, label.length() - 1);
+                    }
+
+                    if (!label.equals(module) && label.length() > 2) {
+                        label = label.substring(0, label.length() - 2) + "..";
+                    }
+
+                    context.drawTextWithShadow(
+                        textRenderer,
+                        Text.literal(label),
+                        x + 12, rowY + 9,
+                        active ? BLUE : 0xFFD8E8FA
+                    );
+
+                    int sx = x + colWidth - 34;
+                    int sy = rowY + 7;
+
+                    context.fill(
+                        sx, sy, sx + 23, sy + 13,
+                        active ? 0xFF00AEEF : 0xFF30435B
+                    );
+
+                    int knobX = active ? sx + 13 : sx + 2;
+                    context.fill(
+                        knobX, sy + 2,
+                        knobX + 9, sy + 11,
+                        active ? 0xFFFFFFFF : 0xFF9CB3CF
+                    );
+
+                    if (!supported) {
+                        context.fill(
+                            x + colWidth - 9, rowY,
+                            x + colWidth - 6, rowY + 27,
+                            0xFF24374A
+                        );
+                    }
+
                     rowY += 31;
                 }
             }
 
             context.drawTextWithShadow(
-                textRenderer, Text.literal("RIGHT CTRL - CLOSE"),
+                textRenderer,
+                Text.literal("RIGHT CTRL  •  CLOSE"),
                 margin + 2, height - 13, MUTED
             );
+
+            // Intentionally do not call super.render(): it renders the
+            // default blurred background again and can crash with
+            // "Can only blur once per frame". This screen has no widgets.
         }
 
         private boolean isSupported(String module) {
             return switch (module) {
-                case "HUD", "FPS Counter", "CPS Counter",
-                     "Coordinates", "Clock", "Fullbright",
-                     "Freecam", "Halo Cyan", "Particle Aura",
-                     "Colored Chest ESP" -> true;
+                case "HUD", "FPS Counter", "Coordinates",
+                "Clock", "Fullbright", "Freecam" -> true;
                 default -> false;
             };
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        public boolean mouseClicked(
+            double mouseX, double mouseY, int button
+        ) {
             if (button != 0) {
                 return super.mouseClicked(mouseX, mouseY, button);
             }
@@ -280,27 +348,32 @@ public class DonutClient implements ClientModInitializer {
             int colWidth = (width - margin * 2 - gap * 4) / 5;
             int startY = margin + 43;
 
-            for (int c = 0; c < MODULES.length; c++) {
+            for (int c = 0; c < 5; c++) {
                 int x = margin + c * (colWidth + gap);
-                int panelHeight = Math.max(40, Math.min(
+                int panelHeight = Math.min(
                     34 + MODULES[c].length * 31,
                     height - startY - 10
-                ));
+                );
 
                 if (mouseX < x || mouseX > x + colWidth
-                    || mouseY < startY + 32 || mouseY > startY + panelHeight) {
+                    || mouseY < startY + 32
+                    || mouseY > startY + panelHeight) {
                     continue;
                 }
 
                 int row = (int) ((mouseY - (startY + 36) + scroll) / 31);
+
                 if (row < 0 || row >= MODULES[c].length) {
                     return true;
                 }
 
                 String module = MODULES[c][row];
-                if (isSupported(module)) {
-                    setEnabled(module, !isModuleEnabled(module));
+
+                if (!isSupported(module)) {
+                    return true;
                 }
+
+                enabled.put(module, !isEnabled(module));
                 return true;
             }
 
@@ -309,10 +382,10 @@ public class DonutClient implements ClientModInitializer {
 
         @Override
         public boolean mouseScrolled(
-            double mouseX, double mouseY,
-            double horizontalAmount, double verticalAmount
+            double mouseX, double mouseY, double horizontalAmount,
+            double verticalAmount
         ) {
-            scroll = Math.max(0, Math.min(150, scroll - (int) (verticalAmount * 25)));
+            scroll = Math.max(0, Math.min(100, scroll - (int) (verticalAmount * 25)));
             return true;
         }
     }
