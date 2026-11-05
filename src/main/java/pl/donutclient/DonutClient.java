@@ -41,11 +41,12 @@ public class DonutClient implements ClientModInitializer {
         },
         {
             "Freecam", "Base Finder", "Spawner Finder",
-            "Storage Finder", "Player ESP", "X-Ray"
+            "Storage Finder", "Player ESP", "X-Ray",
+            "Colored Chest ESP"
         },
         {
             "Animations", "Particles", "Clean Screen",
-            "Low Fire"
+            "Low Fire", "Halo Cyan", "Particle Aura"
         },
         {
             "Dark Theme", "Smooth Animations",
@@ -135,6 +136,11 @@ public class DonutClient implements ClientModInitializer {
 
     private static boolean isEnabled(String name) {
         return enabled.getOrDefault(name, false);
+    }
+
+    /** Public module-state accessor used by DonutVisuals and other client classes. */
+    public static boolean isModuleEnabled(String name) {
+        return isEnabled(name);
     }
 
     private static void updateFullbright(MinecraftClient client) {
@@ -329,8 +335,9 @@ public class DonutClient implements ClientModInitializer {
 
         private boolean isSupported(String module) {
             return switch (module) {
-                case "HUD", "FPS Counter", "Coordinates",
-                "Clock", "Fullbright", "Freecam" -> true;
+                case "HUD", "FPS Counter", "CPS Counter", "Coordinates",
+                "Clock", "Fullbright", "Freecam", "Halo Cyan",
+                "Particle Aura", "Colored Chest ESP" -> true;
                 default -> false;
             };
         }
